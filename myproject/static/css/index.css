@@ -1,0 +1,32 @@
+body{
+    margin: 20px;
+}
+
+.filter_form{
+    display: flex;
+}
+
+table {
+    border-collapse: collapse;
+    width: 85%;
+}
+
+th {
+    background-color: #eee;  
+}
+
+th, td {
+    border: 1px solid black;
+    height: 50px;
+    padding: 10px;
+    text-align: center;
+}
+
+th:first-child, td:first-child {
+    width: 50px;
+    background-color :#eee;
+}
+
+th:not(:first-child), td:not(:first-child) {
+    width: 150px;
+}

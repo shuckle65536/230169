@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>山吹履修ナビ</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/simulator.css') }}">
+</head>
+<body>
+    <h1><a href="/">授業検索</a> 時間割作成</h1>
+    <div class="container">
+        <table id="timetable">
+            <tr>
+                <th></th>
+                <th>月</th>
+                <th>火</th>
+                <th>水</th>
+                <th>木</th>
+                <th>金</th>
+            </tr>
+            {% for row in timetableList %}
+            <tr>
+                <td>{{ periods[loop.index0] }}限</td>
+                {% for col in row %}
+                    <td>{{ col[0] }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </table>
+        <div id="toolbar">
+            <p>単位数: 0</p>
+            <button onclick="clearTimetable()">クリア</button>
+            <button onclick="saveTimetable()">セーブ</button>
+            <button onclick="loadTimetable()">ロード</button>
+        </div>
+    </div>
+    <table id="display" border="1">
+        <tbody>
+            {% for i in range(2) %}
+                <tr>
+                    {% for j in range(11) %}
+                        <td></td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        const timetable = document.getElementById("timetable");
+        const display = document.getElementById("display");
+        const subjectList_js = {{ subjectList | tojson }};
+        let myTimetable = {{ timetableList| tojson}};
+        let selectedCell = null;
+        let displayedList = [];
+
+        timetable.addEventListener("click", function(event) {
+            const cell = event.target;
+            if (cell.tagName === "TD" && cell.cellIndex > 0) {
+                selectCell(cell);
+                updateDisplay();
+            }
+        });
+
+        document.addEventListener("click", function(event) {
+            if (!event.target.closest("#timetable, #display")) {
+                if (selectedCell) {
+                    selectedCell.classList.remove("selected");
+                    selectedCell = null;
+                }
+            }
+        });
+
+        function selectCell(cell) {
+            if (selectedCell) {
+                selectedCell.classList.remove("selected");
+            }
+            selectedCell = cell;
+            selectedCell.classList.add("selected");
+        }
+
+        function updateDisplay() {
+            const rowIndex = selectedCell.parentElement.rowIndex - 1;
+            const cellIndex = selectedCell.cellIndex - 1;
+
+            displayedList = subjectList_js[rowIndex][cellIndex];
+            while (displayedList.length < 22) {
+                displayedList.push([""]);
+            }
+
+            let rowCount = 0;
+            for (let i = 0; i < 2; i++) {
+                const row = display.rows[i];
+                for (let j = 0; j < 11; j++, rowCount++) {
+                    row.cells[j].textContent = displayedList[rowCount][0];
+                }
+            }
+        }
+
+        display.addEventListener("click", function(event) {
+            const cell = event.target;
+
+            if (cell.tagName === "TD" && selectedCell) {
+                const displayIndex =  cell.cellIndex + cell.parentNode.rowIndex * 11;
+                const courseData = displayedList[displayIndex];
+                const rowIndex = selectedCell.parentElement.rowIndex - 1;
+
+                const day1 = courseData[5] ?? selectedCell.cellIndex -1;
+                const day2 = courseData[6] || null;
+                
+                [day1, day2].forEach(day => {
+                    if (day !== null) {
+                        cellDelete(myTimetable[rowIndex][day]);
+                        myTimetable[rowIndex][day] = courseData;
+                    }
+                });
+                updateTable(myTimetable);
+            }
+        });
+
+        function cellDelete(value){
+            if (value[4] == undefined) return;
+            const rowIndex = value[4];
+            myTimetable[rowIndex].forEach((cell,index) => {
+                if (cell === value) {
+                    myTimetable[rowIndex][index] = [""];
+                }
+            });
+        }
+
+        function updateTable(data) {
+            let rows = timetable.getElementsByTagName("tr");
+
+            for (let i = 1; i <= 6; i++) {
+                let cells = rows[i].getElementsByTagName("td");
+                for (let j = 1; j <= 5; j++) {
+                    let course = data[i-1][j-1]
+                    if (course[7]) {
+                        cells[j].innerHTML = `<span class="code">${[course[7]]}</span>` + "<br>" + course[0];
+                    }
+                    else {
+                        cells[j].innerHTML = course[0];
+                    }
+                }
+            }
+        }
+
+        document.addEventListener("keydown",event => {
+            if (!selectedCell) return;
+
+            let rowIndex = selectedCell.parentElement.rowIndex;
+            let cellIndex = selectedCell.cellIndex;
+            let rows = timetable.getElementsByTagName("tr");
+
+            switch (event.key) {
+                case "ArrowUp":
+                    if (rowIndex > 1) rowIndex--;
+                    break;
+
+                case "ArrowDown":
+                    if (rowIndex < 6) rowIndex++;
+                    break;
+                
+                case "ArrowLeft":
+                    if (cellIndex > 1) cellIndex--;
+                    break;
+                
+                case "ArrowRight":
+                    if (cellIndex < 5) cellIndex++;
+                    break;
+    
+                case "d":
+                    cellDelete(myTimetable[rowIndex - 1][cellIndex - 1])
+                    updateTable(myTimetable);
+                    break;
+
+                default:
+                    return
+            }
+
+            selectCell(rows[rowIndex].cells[cellIndex]);
+            updateDisplay()
+        });
+
+        //toolbar
+        function count_Credits() {
+            
+        }
+
+        function clearTimetable() {
+            myTimetable = myTimetable.map(row => row.map(() => [""]));
+            updateTable(myTimetable);
+        }
+
+        function saveTimetable() {
+            localStorage.setItem("myTimetable", JSON.stringify(myTimetable));
+        }
+
+        function loadTimetable() {
+            let saveData = localStorage.getItem("myTimetable");
+            if (saveData) {
+                myTimetable = JSON.parse(saveData);
+                updateTable(myTimetable);
+            }
+        }
+    </script>
+</body>
+</html>

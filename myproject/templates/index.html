@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>山吹履修ナビ</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/index.css') }}">
+</head>
+<body>
+    <h1>授業検索 <a href="/simulator">時間割作成</a></h1>
+    <div class="form_box">
+        <form id="search_form" autocomplete="off" onsubmit="return false;" >
+            <label for="search_input">検索したい授業を入力:</label>
+            <input type="text" id="search_input" autofocus>
+            <button type="submit" id="search_button">検索</button>
+        </form>        
+        <span class="filter_title">教科：</span>
+        <div>
+            {% for subject in ['国語', '地理歴史', '公民', '数学', '理科', '保健体育', '芸術', '外国語', '英語(専門)', '家庭', '家庭(専門)', '情報', '情報(専門)'] %}
+                <label>
+                    <input type="checkbox" class="subject_checkbox" value="{{ subject }}">{{ subject }}
+                </label>
+                {% if loop.index % 7 == 0 %}<br>{% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    
+    <h2>検索結果:</h2>
+    <table id="timetable">
+        <tr>
+            <th></th>
+            <th>月</th>
+            <th>火</th>
+            <th>水</th>
+            <th>木</th>
+            <th>金</th>
+        </tr>
+        {% for row in timetable %}
+            <tr>
+                <td>{{ periods[loop.index0] }}限</td>
+                {% for col in row %}
+                    <td>
+                        {% for cell in col %}
+                            {{ cell[0] }}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    </td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </table>
+    <script>
+        const timetable = document.getElementById("timetable");
+        const checkboxes = document.querySelectorAll('input[type="checkbox"].subject_checkbox');
+        let selected_subjects = new Set();
+        let df_js = {{df_records | tojson}};
+
+        document.getElementById("search_form").addEventListener("submit", function (event) {
+            event.preventDefault();
+            let keywords = document.getElementById("search_input").value;
+            const resultTable = search(keywords);
+            updateTable(resultTable);
+        });
+
+        document.addEventListener("DOMContentLoaded", () => {
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener("change", () => {
+                    if (checkbox.checked) {
+                        selected_subjects.add(checkbox.value);
+                    } else {
+                        selected_subjects.delete(checkbox.value);
+                    }
+                    document.getElementById("search_form").dispatchEvent(new Event("submit"));
+                });
+            });
+        });
+
+        function NoCvt(cell) {
+            const conversion = {
+                "III": "三", "II": "二", "I": "一", 
+                "iii": "三", "ii": "二", "i": "一"
+            };
+        
+            for (let [key, value] of Object.entries(conversion)) {
+                if (cell.includes(key)) return cell.replace(key, value);
+                if (cell.includes(value)) return cell.replace(value, key);
+            }     
+            return cell;
+        }
+        
+        function search(keywords) {
+            let keywordList = keywords.trim().split(/\s+/);
+            let result = Array.from({ length: 6 }, () => Array.from({ length: 5 }, () => []));
+
+
+            if (!keywords && selected_subjects.size == 0) {
+                return result;
+            }
+
+            df_js.forEach(course => {
+                if (selected_subjects.size > 0 && !selected_subjects.has(course["教科"])) return;
+
+                keywordList.forEach(keyword => {
+                    keyword = NoCvt(keyword)
+                    
+                    if (course["科目"].includes(keyword) || course["講座"].includes(keyword)) {
+                        const period = parseInt(course["開講時間"]);
+                        const days = [course["曜日1"], course["曜日2"] || null];
+                        const cellValue = NoCvt(course["講座"])
+                        days.forEach(day => {
+                            if (day !== null && !result[period][day].includes(cellValue)) {
+                                result[period][day].push(cellValue);
+                            }
+                        });
+                        return;
+                    }
+                });
+            });
+            return result;
+        }
+
+        function updateTable(data) {
+            for (let i = 1; i <= 6; i++) {
+                let cells = timetable.rows[i].cells;
+                for (let j = 1; j <= 5; j++) {
+                    cells[j].textContent = data[i - 1][j - 1];
+                }
+            }
+        }
+    </script> 
+</body>
+</html>
